@@ -1,0 +1,1109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Latent Spectral Equivariance (LatentEQ): structured audio VAE representations for diffusion modeling.">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Latent Spectral Equivariance">
+    <meta property="og:description" content="Latent Spectral Equivariance (LatentEQ): structured audio VAE representations for diffusion modeling.">
+    <meta name="theme-color" content="#ffffff">
+    <title>Latent Spectral Equivariance</title>
+    <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="static/css/style.css">
+</head>
+<body id="top">
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <nav class="topbar" id="topbar" aria-label="Sections">
+        <div class="topbar-inner">
+            <a class="topbar-title" href="#top">LatentEQ</a>
+            <div class="topbar-links">
+                <a href="#abstract">Abstract</a>
+                <a href="#contributions">Method</a>
+                <a href="#t2a"><span class="long">Text-to-Audio</span><span class="short">T2A</span></a>
+                <a href="#v2a"><span class="long">Video-to-Audio</span><span class="short">V2A</span></a>
+                <a href="#vt2a"><span class="long">Video-and-Text-to-Audio</span><span class="short">VT2A</span></a>
+                <a href="#reconstruction"><span class="long">VAE Reconstruction</span><span class="short">VAE</span></a>
+                <a href="#figure2">Figure 2</a>
+            </div>
+        </div>
+    </nav>
+
+    <header class="hero">
+        <div class="hero-inner">
+            <h1>Latent Spectral Equivariance</h1>
+            <p class="authors">Anonymous Authors</p>
+            <p class="tldr">
+                <span class="label">TL;DR</span>
+                Structure audio VAE latents along time and frequency with <em>temporal scale equivariance</em> and <em>spectral granularity equivariance</em>, improving diffusion modeling without changing the architecture or adding loss terms.
+            </p>
+            <div class="actions">
+                <a href="#contributions" class="button">
+                    <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3v18M5 14l7 7 7-7"/></svg> Method
+                </a>
+                <a href="#t2a" class="button" title="Text-to-Audio">
+                    <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg> T2A
+                </a>
+                <a href="#v2a" class="button" title="Video-to-Audio">
+                    <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M2 7h13v10H2zM15 11l6-4v10l-6-4"/></svg> V2A
+                </a>
+                <a href="#vt2a" class="button" title="Video-and-Text-to-Audio">
+                    <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M2 4h13v9H2zM15 7.5l6-3.5v9l-6-3.5M2 17h13M2 21h8"/></svg> VT2A
+                </a>
+                <a href="#reconstruction" class="button" title="VAE Reconstruction">
+                    <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M3 12h2M7 8v8M11 5v14M15 9v6M19 7v10M21 12h0"/></svg> VAE
+                </a>
+            </div>
+        </div>
+
+        <figure class="teaser" id="overview">
+            <a href="assets/figures/LatentEQ.webp" target="_blank" rel="noopener" aria-label="Open the LatentEQ overview at full size">
+                <img src="assets/figures/LatentEQ.webp" width="2115" height="634" alt="Overview of LatentEQ: matched temporal and spectral transformations connect latent representations to target spectrograms." fetchpriority="high">
+            </a>
+            <figcaption>
+                <span class="label">Figure 1.</span> Overview of LatentEQ. Temporal scale equivariance and spectral granularity equivariance pair coarsenings of the latent along its temporal and channel axes with matched coarsenings of the target spectrogram.
+            </figcaption>
+        </figure>
+    </header>
+
+    <main id="main">
+    <div class="paper">
+        <section class="section prose" id="abstract" aria-labelledby="abstract-title">
+            <h3 id="abstract-title">Abstract</h3>
+            <p>
+                Scalable audio generation systems typically cascade a pretrained variational autoencoder (VAE) for audio compression and a latent diffusion model for distribution modeling. However, existing VAEs prioritize reconstruction fidelity without explicitly considering how readily the resulting latent distribution can be modeled by diffusion, potentially limiting generation quality. Recent work highlights the importance of aligning latent representations with the structure of the underlying data for diffusion modeling.
+            </p>
+            <p>
+                Building on this direction, we introduce <strong>Latent Spectral Equivariance (LatentEQ)</strong>, a framework that introduces equivariance into audio VAE optimization by pairing latent transformations with corresponding spectrogram transformations. Specifically, <strong>temporal scale equivariance</strong> applies matched low-pass filtering along time, aligning slowly varying latent components with slowly varying acoustic structure. <strong>Spectral granularity equivariance</strong> pairs latent channel prefixes with frequency-smoothed spectrograms, organizing channels to progressively capture spectral envelopes and fine harmonic detail.
+            </p>
+            <p>
+                We instantiate LatentEQ on the VAEs of two well-known audio generation systems, <strong>Stable Audio Open</strong> and <strong>MMAudio</strong>, through fine-tuning without changing their architecture or adding loss terms. Comprehensive results demonstrate improved generation quality across waveform- and spectrogram-based VAEs and both text-to-audio and video-to-audio tasks, highlighting LatentEQ as an effective principle for learning structured audio latents.
+            </p>
+        </section>
+
+        <section class="section" id="contributions" aria-labelledby="contributions-title">
+            <h3 id="contributions-title">Key Contributions</h3>
+            <ol class="cards">
+                <li class="card">
+                    <span class="card-index" aria-hidden="true">1</span>
+                    <h4>Temporal Scale <br>Equivariance</h4>
+                    <p>Pairs temporal low-pass filtering of the latent with the same coarsening of the target spectrogram, connecting slow latent variation to slowly varying acoustic structure.</p>
+                </li>
+                <li class="card">
+                    <span class="card-index" aria-hidden="true">2</span>
+                    <h4>Spectral Granularity <br>Equivariance</h4>
+                    <p>Pairs a prefix of latent channels with spectral smoothing of the target, so leading channels capture broad spectral envelopes and later channels progressively add fine detail.</p>
+                </li>
+                <li class="card">
+                    <span class="card-index" aria-hidden="true">3</span>
+                    <h4>One Principle Across <br>Audio Generation Systems</h4>
+                    <p>Fine-tunes waveform and spectrogram VAEs without changing their architecture or adding loss terms. The frozen VAE then provides structured latents for standard diffusion training.</p>
+                </li>
+            </ol>
+        </section>
+    </div>
+
+    <section class="demos-section" id="t2a">
+        <h3>Text-to-Audio</h3>
+
+        <div class="demos-group" id="t2a-audiocaps">
+            <h4>AudioCaps</h4>
+
+            <div class="demo-block" id="t2a-01">
+                <h4>01.</h4>
+                <p class="demo-desc">Water trickles as birds chirp then drums begin to play</p>
+                <div class="demo-table-wrapper">
+                    <table class="demo-table">
+                        <thead>
+                            <tr>
+                                <th></th>
+                                <th>Ground Truth</th>
+                                <th>AudioLDM</th>
+                                <th>Tango</th>
+                                <th>MMAudio</th>
+                                <th class="col-ours">LatentEQ (Spectrogram)</th>
+                                <th>TangoFlux</th>
+                                <th>AudioX</th>
+                                <th>Stable Audio Open</th>
+                                <th class="col-ours">LatentEQ (Waveform)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <th>Mel</th>
+                                <td class="mel"><img src="assets/t2a/t2a-01/reference.webp" alt="Ground Truth, AudioCaps example 1 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/t2a/t2a-01/audioldm.webp" alt="AudioLDM, AudioCaps example 1 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/t2a/t2a-01/tango.webp" alt="Tango, AudioCaps example 1 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/t2a/t2a-01/mmaudio.webp" alt="MMAudio, AudioCaps example 1 mel" loading="lazy"></td>
+                                <td class="col-ours mel"><img src="assets/t2a/t2a-01/ours_spec.webp" alt="LatentEQ (Spectrogram), AudioCaps example 1 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/t2a/t2a-01/tangoflux.webp" alt="TangoFlux, AudioCaps example 1 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/t2a/t2a-01/audiox.webp" alt="AudioX, AudioCaps example 1 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/t2a/t2a-01/sao.webp" alt="Stable Audio Open, AudioCaps example 1 mel" loading="lazy"></td>
+                                <td class="col-ours mel"><img src="assets/t2a/t2a-01/ours_wave.webp" alt="LatentEQ (Waveform), AudioCaps example 1 mel" loading="lazy"></td>
+                            </tr>
+                            <tr>
+                                <th>Audio</th>
+                                <td class="audio"><audio controls preload="none" src="assets/t2a/t2a-01/reference.flac" aria-label="Play Ground Truth, AudioCaps example 1"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/t2a/t2a-01/audioldm.flac" aria-label="Play AudioLDM, AudioCaps example 1"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/t2a/t2a-01/tango.flac" aria-label="Play Tango, AudioCaps example 1"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/t2a/t2a-01/mmaudio.flac" aria-label="Play MMAudio, AudioCaps example 1"></audio></td>
+                                <td class="col-ours audio"><audio controls preload="none" src="assets/t2a/t2a-01/ours_spec.flac" aria-label="Play LatentEQ (Spectrogram), AudioCaps example 1"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/t2a/t2a-01/tangoflux.flac" aria-label="Play TangoFlux, AudioCaps example 1"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/t2a/t2a-01/audiox.flac" aria-label="Play AudioX, AudioCaps example 1"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/t2a/t2a-01/sao.flac" aria-label="Play Stable Audio Open, AudioCaps example 1"></audio></td>
+                                <td class="col-ours audio"><audio controls preload="none" src="assets/t2a/t2a-01/ours_wave.flac" aria-label="Play LatentEQ (Waveform), AudioCaps example 1"></audio></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="demo-block" id="t2a-02">
+                <h4>02.</h4>
+                <p class="demo-desc">A quick repeat of applause followed by continued applause</p>
+                <div class="demo-table-wrapper">
+                    <table class="demo-table">
+                        <thead>
+                            <tr>
+                                <th></th>
+                                <th>Ground Truth</th>
+                                <th>AudioLDM</th>
+                                <th>Tango</th>
+                                <th>MMAudio</th>
+                                <th class="col-ours">LatentEQ (Spectrogram)</th>
+                                <th>TangoFlux</th>
+                                <th>AudioX</th>
+                                <th>Stable Audio Open</th>
+                                <th class="col-ours">LatentEQ (Waveform)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <th>Mel</th>
+                                <td class="mel"><img src="assets/t2a/t2a-02/reference.webp" alt="Ground Truth, AudioCaps example 2 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/t2a/t2a-02/audioldm.webp" alt="AudioLDM, AudioCaps example 2 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/t2a/t2a-02/tango.webp" alt="Tango, AudioCaps example 2 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/t2a/t2a-02/mmaudio.webp" alt="MMAudio, AudioCaps example 2 mel" loading="lazy"></td>
+                                <td class="col-ours mel"><img src="assets/t2a/t2a-02/ours_spec.webp" alt="LatentEQ (Spectrogram), AudioCaps example 2 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/t2a/t2a-02/tangoflux.webp" alt="TangoFlux, AudioCaps example 2 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/t2a/t2a-02/audiox.webp" alt="AudioX, AudioCaps example 2 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/t2a/t2a-02/sao.webp" alt="Stable Audio Open, AudioCaps example 2 mel" loading="lazy"></td>
+                                <td class="col-ours mel"><img src="assets/t2a/t2a-02/ours_wave.webp" alt="LatentEQ (Waveform), AudioCaps example 2 mel" loading="lazy"></td>
+                            </tr>
+                            <tr>
+                                <th>Audio</th>
+                                <td class="audio"><audio controls preload="none" src="assets/t2a/t2a-02/reference.flac" aria-label="Play Ground Truth, AudioCaps example 2"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/t2a/t2a-02/audioldm.flac" aria-label="Play AudioLDM, AudioCaps example 2"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/t2a/t2a-02/tango.flac" aria-label="Play Tango, AudioCaps example 2"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/t2a/t2a-02/mmaudio.flac" aria-label="Play MMAudio, AudioCaps example 2"></audio></td>
+                                <td class="col-ours audio"><audio controls preload="none" src="assets/t2a/t2a-02/ours_spec.flac" aria-label="Play LatentEQ (Spectrogram), AudioCaps example 2"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/t2a/t2a-02/tangoflux.flac" aria-label="Play TangoFlux, AudioCaps example 2"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/t2a/t2a-02/audiox.flac" aria-label="Play AudioX, AudioCaps example 2"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/t2a/t2a-02/sao.flac" aria-label="Play Stable Audio Open, AudioCaps example 2"></audio></td>
+                                <td class="col-ours audio"><audio controls preload="none" src="assets/t2a/t2a-02/ours_wave.flac" aria-label="Play LatentEQ (Waveform), AudioCaps example 2"></audio></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="demo-block" id="t2a-03">
+                <h4>03.</h4>
+                <p class="demo-desc">A train horn blows as a train approaches with warning bells ringing</p>
+                <div class="demo-table-wrapper">
+                    <table class="demo-table">
+                        <thead>
+                            <tr>
+                                <th></th>
+                                <th>Ground Truth</th>
+                                <th>AudioLDM</th>
+                                <th>Tango</th>
+                                <th>MMAudio</th>
+                                <th class="col-ours">LatentEQ (Spectrogram)</th>
+                                <th>TangoFlux</th>
+                                <th>AudioX</th>
+                                <th>Stable Audio Open</th>
+                                <th class="col-ours">LatentEQ (Waveform)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <th>Mel</th>
+                                <td class="mel"><img src="assets/t2a/t2a-03/reference.webp" alt="Ground Truth, AudioCaps example 3 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/t2a/t2a-03/audioldm.webp" alt="AudioLDM, AudioCaps example 3 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/t2a/t2a-03/tango.webp" alt="Tango, AudioCaps example 3 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/t2a/t2a-03/mmaudio.webp" alt="MMAudio, AudioCaps example 3 mel" loading="lazy"></td>
+                                <td class="col-ours mel"><img src="assets/t2a/t2a-03/ours_spec.webp" alt="LatentEQ (Spectrogram), AudioCaps example 3 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/t2a/t2a-03/tangoflux.webp" alt="TangoFlux, AudioCaps example 3 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/t2a/t2a-03/audiox.webp" alt="AudioX, AudioCaps example 3 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/t2a/t2a-03/sao.webp" alt="Stable Audio Open, AudioCaps example 3 mel" loading="lazy"></td>
+                                <td class="col-ours mel"><img src="assets/t2a/t2a-03/ours_wave.webp" alt="LatentEQ (Waveform), AudioCaps example 3 mel" loading="lazy"></td>
+                            </tr>
+                            <tr>
+                                <th>Audio</th>
+                                <td class="audio"><audio controls preload="none" src="assets/t2a/t2a-03/reference.flac" aria-label="Play Ground Truth, AudioCaps example 3"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/t2a/t2a-03/audioldm.flac" aria-label="Play AudioLDM, AudioCaps example 3"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/t2a/t2a-03/tango.flac" aria-label="Play Tango, AudioCaps example 3"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/t2a/t2a-03/mmaudio.flac" aria-label="Play MMAudio, AudioCaps example 3"></audio></td>
+                                <td class="col-ours audio"><audio controls preload="none" src="assets/t2a/t2a-03/ours_spec.flac" aria-label="Play LatentEQ (Spectrogram), AudioCaps example 3"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/t2a/t2a-03/tangoflux.flac" aria-label="Play TangoFlux, AudioCaps example 3"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/t2a/t2a-03/audiox.flac" aria-label="Play AudioX, AudioCaps example 3"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/t2a/t2a-03/sao.flac" aria-label="Play Stable Audio Open, AudioCaps example 3"></audio></td>
+                                <td class="col-ours audio"><audio controls preload="none" src="assets/t2a/t2a-03/ours_wave.flac" aria-label="Play LatentEQ (Waveform), AudioCaps example 3"></audio></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="demo-block" id="t2a-04">
+                <h4>04.</h4>
+                <p class="demo-desc">An infant and woman laughing as water splashes and birds chirp in the background</p>
+                <div class="demo-table-wrapper">
+                    <table class="demo-table">
+                        <thead>
+                            <tr>
+                                <th></th>
+                                <th>Ground Truth</th>
+                                <th>AudioLDM</th>
+                                <th>Tango</th>
+                                <th>MMAudio</th>
+                                <th class="col-ours">LatentEQ (Spectrogram)</th>
+                                <th>TangoFlux</th>
+                                <th>AudioX</th>
+                                <th>Stable Audio Open</th>
+                                <th class="col-ours">LatentEQ (Waveform)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <th>Mel</th>
+                                <td class="mel"><img src="assets/t2a/t2a-04/reference.webp" alt="Ground Truth, AudioCaps example 4 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/t2a/t2a-04/audioldm.webp" alt="AudioLDM, AudioCaps example 4 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/t2a/t2a-04/tango.webp" alt="Tango, AudioCaps example 4 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/t2a/t2a-04/mmaudio.webp" alt="MMAudio, AudioCaps example 4 mel" loading="lazy"></td>
+                                <td class="col-ours mel"><img src="assets/t2a/t2a-04/ours_spec.webp" alt="LatentEQ (Spectrogram), AudioCaps example 4 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/t2a/t2a-04/tangoflux.webp" alt="TangoFlux, AudioCaps example 4 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/t2a/t2a-04/audiox.webp" alt="AudioX, AudioCaps example 4 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/t2a/t2a-04/sao.webp" alt="Stable Audio Open, AudioCaps example 4 mel" loading="lazy"></td>
+                                <td class="col-ours mel"><img src="assets/t2a/t2a-04/ours_wave.webp" alt="LatentEQ (Waveform), AudioCaps example 4 mel" loading="lazy"></td>
+                            </tr>
+                            <tr>
+                                <th>Audio</th>
+                                <td class="audio"><audio controls preload="none" src="assets/t2a/t2a-04/reference.flac" aria-label="Play Ground Truth, AudioCaps example 4"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/t2a/t2a-04/audioldm.flac" aria-label="Play AudioLDM, AudioCaps example 4"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/t2a/t2a-04/tango.flac" aria-label="Play Tango, AudioCaps example 4"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/t2a/t2a-04/mmaudio.flac" aria-label="Play MMAudio, AudioCaps example 4"></audio></td>
+                                <td class="col-ours audio"><audio controls preload="none" src="assets/t2a/t2a-04/ours_spec.flac" aria-label="Play LatentEQ (Spectrogram), AudioCaps example 4"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/t2a/t2a-04/tangoflux.flac" aria-label="Play TangoFlux, AudioCaps example 4"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/t2a/t2a-04/audiox.flac" aria-label="Play AudioX, AudioCaps example 4"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/t2a/t2a-04/sao.flac" aria-label="Play Stable Audio Open, AudioCaps example 4"></audio></td>
+                                <td class="col-ours audio"><audio controls preload="none" src="assets/t2a/t2a-04/ours_wave.flac" aria-label="Play LatentEQ (Waveform), AudioCaps example 4"></audio></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="demo-block" id="t2a-05">
+                <h4>05.</h4>
+                <p class="demo-desc">Tires squealing followed by an engine revving</p>
+                <div class="demo-table-wrapper">
+                    <table class="demo-table">
+                        <thead>
+                            <tr>
+                                <th></th>
+                                <th>Ground Truth</th>
+                                <th>AudioLDM</th>
+                                <th>Tango</th>
+                                <th>MMAudio</th>
+                                <th class="col-ours">LatentEQ (Spectrogram)</th>
+                                <th>TangoFlux</th>
+                                <th>AudioX</th>
+                                <th>Stable Audio Open</th>
+                                <th class="col-ours">LatentEQ (Waveform)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <th>Mel</th>
+                                <td class="mel"><img src="assets/t2a/t2a-05/reference.webp" alt="Ground Truth, AudioCaps example 5 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/t2a/t2a-05/audioldm.webp" alt="AudioLDM, AudioCaps example 5 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/t2a/t2a-05/tango.webp" alt="Tango, AudioCaps example 5 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/t2a/t2a-05/mmaudio.webp" alt="MMAudio, AudioCaps example 5 mel" loading="lazy"></td>
+                                <td class="col-ours mel"><img src="assets/t2a/t2a-05/ours_spec.webp" alt="LatentEQ (Spectrogram), AudioCaps example 5 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/t2a/t2a-05/tangoflux.webp" alt="TangoFlux, AudioCaps example 5 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/t2a/t2a-05/audiox.webp" alt="AudioX, AudioCaps example 5 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/t2a/t2a-05/sao.webp" alt="Stable Audio Open, AudioCaps example 5 mel" loading="lazy"></td>
+                                <td class="col-ours mel"><img src="assets/t2a/t2a-05/ours_wave.webp" alt="LatentEQ (Waveform), AudioCaps example 5 mel" loading="lazy"></td>
+                            </tr>
+                            <tr>
+                                <th>Audio</th>
+                                <td class="audio"><audio controls preload="none" src="assets/t2a/t2a-05/reference.flac" aria-label="Play Ground Truth, AudioCaps example 5"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/t2a/t2a-05/audioldm.flac" aria-label="Play AudioLDM, AudioCaps example 5"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/t2a/t2a-05/tango.flac" aria-label="Play Tango, AudioCaps example 5"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/t2a/t2a-05/mmaudio.flac" aria-label="Play MMAudio, AudioCaps example 5"></audio></td>
+                                <td class="col-ours audio"><audio controls preload="none" src="assets/t2a/t2a-05/ours_spec.flac" aria-label="Play LatentEQ (Spectrogram), AudioCaps example 5"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/t2a/t2a-05/tangoflux.flac" aria-label="Play TangoFlux, AudioCaps example 5"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/t2a/t2a-05/audiox.flac" aria-label="Play AudioX, AudioCaps example 5"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/t2a/t2a-05/sao.flac" aria-label="Play Stable Audio Open, AudioCaps example 5"></audio></td>
+                                <td class="col-ours audio"><audio controls preload="none" src="assets/t2a/t2a-05/ours_wave.flac" aria-label="Play LatentEQ (Waveform), AudioCaps example 5"></audio></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="demo-block" id="t2a-06">
+                <h4>06.</h4>
+                <p class="demo-desc">Multiple basketballs bouncing on a hard surface and shoes squeaking as a man shouts in the distance</p>
+                <div class="demo-table-wrapper">
+                    <table class="demo-table">
+                        <thead>
+                            <tr>
+                                <th></th>
+                                <th>Ground Truth</th>
+                                <th>AudioLDM</th>
+                                <th>Tango</th>
+                                <th>MMAudio</th>
+                                <th class="col-ours">LatentEQ (Spectrogram)</th>
+                                <th>TangoFlux</th>
+                                <th>AudioX</th>
+                                <th>Stable Audio Open</th>
+                                <th class="col-ours">LatentEQ (Waveform)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <th>Mel</th>
+                                <td class="mel"><img src="assets/t2a/t2a-06/reference.webp" alt="Ground Truth, AudioCaps example 6 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/t2a/t2a-06/audioldm.webp" alt="AudioLDM, AudioCaps example 6 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/t2a/t2a-06/tango.webp" alt="Tango, AudioCaps example 6 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/t2a/t2a-06/mmaudio.webp" alt="MMAudio, AudioCaps example 6 mel" loading="lazy"></td>
+                                <td class="col-ours mel"><img src="assets/t2a/t2a-06/ours_spec.webp" alt="LatentEQ (Spectrogram), AudioCaps example 6 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/t2a/t2a-06/tangoflux.webp" alt="TangoFlux, AudioCaps example 6 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/t2a/t2a-06/audiox.webp" alt="AudioX, AudioCaps example 6 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/t2a/t2a-06/sao.webp" alt="Stable Audio Open, AudioCaps example 6 mel" loading="lazy"></td>
+                                <td class="col-ours mel"><img src="assets/t2a/t2a-06/ours_wave.webp" alt="LatentEQ (Waveform), AudioCaps example 6 mel" loading="lazy"></td>
+                            </tr>
+                            <tr>
+                                <th>Audio</th>
+                                <td class="audio"><audio controls preload="none" src="assets/t2a/t2a-06/reference.flac" aria-label="Play Ground Truth, AudioCaps example 6"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/t2a/t2a-06/audioldm.flac" aria-label="Play AudioLDM, AudioCaps example 6"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/t2a/t2a-06/tango.flac" aria-label="Play Tango, AudioCaps example 6"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/t2a/t2a-06/mmaudio.flac" aria-label="Play MMAudio, AudioCaps example 6"></audio></td>
+                                <td class="col-ours audio"><audio controls preload="none" src="assets/t2a/t2a-06/ours_spec.flac" aria-label="Play LatentEQ (Spectrogram), AudioCaps example 6"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/t2a/t2a-06/tangoflux.flac" aria-label="Play TangoFlux, AudioCaps example 6"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/t2a/t2a-06/audiox.flac" aria-label="Play AudioX, AudioCaps example 6"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/t2a/t2a-06/sao.flac" aria-label="Play Stable Audio Open, AudioCaps example 6"></audio></td>
+                                <td class="col-ours audio"><audio controls preload="none" src="assets/t2a/t2a-06/ours_wave.flac" aria-label="Play LatentEQ (Waveform), AudioCaps example 6"></audio></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="demo-block" id="t2a-07">
+                <h4>07.</h4>
+                <p class="demo-desc">Sirens ring and a vehicle speeds closer</p>
+                <div class="demo-table-wrapper">
+                    <table class="demo-table">
+                        <thead>
+                            <tr>
+                                <th></th>
+                                <th>Ground Truth</th>
+                                <th>AudioLDM</th>
+                                <th>Tango</th>
+                                <th>MMAudio</th>
+                                <th class="col-ours">LatentEQ (Spectrogram)</th>
+                                <th>TangoFlux</th>
+                                <th>AudioX</th>
+                                <th>Stable Audio Open</th>
+                                <th class="col-ours">LatentEQ (Waveform)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <th>Mel</th>
+                                <td class="mel"><img src="assets/t2a/t2a-07/reference.webp" alt="Ground Truth, AudioCaps example 7 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/t2a/t2a-07/audioldm.webp" alt="AudioLDM, AudioCaps example 7 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/t2a/t2a-07/tango.webp" alt="Tango, AudioCaps example 7 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/t2a/t2a-07/mmaudio.webp" alt="MMAudio, AudioCaps example 7 mel" loading="lazy"></td>
+                                <td class="col-ours mel"><img src="assets/t2a/t2a-07/ours_spec.webp" alt="LatentEQ (Spectrogram), AudioCaps example 7 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/t2a/t2a-07/tangoflux.webp" alt="TangoFlux, AudioCaps example 7 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/t2a/t2a-07/audiox.webp" alt="AudioX, AudioCaps example 7 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/t2a/t2a-07/sao.webp" alt="Stable Audio Open, AudioCaps example 7 mel" loading="lazy"></td>
+                                <td class="col-ours mel"><img src="assets/t2a/t2a-07/ours_wave.webp" alt="LatentEQ (Waveform), AudioCaps example 7 mel" loading="lazy"></td>
+                            </tr>
+                            <tr>
+                                <th>Audio</th>
+                                <td class="audio"><audio controls preload="none" src="assets/t2a/t2a-07/reference.flac" aria-label="Play Ground Truth, AudioCaps example 7"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/t2a/t2a-07/audioldm.flac" aria-label="Play AudioLDM, AudioCaps example 7"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/t2a/t2a-07/tango.flac" aria-label="Play Tango, AudioCaps example 7"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/t2a/t2a-07/mmaudio.flac" aria-label="Play MMAudio, AudioCaps example 7"></audio></td>
+                                <td class="col-ours audio"><audio controls preload="none" src="assets/t2a/t2a-07/ours_spec.flac" aria-label="Play LatentEQ (Spectrogram), AudioCaps example 7"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/t2a/t2a-07/tangoflux.flac" aria-label="Play TangoFlux, AudioCaps example 7"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/t2a/t2a-07/audiox.flac" aria-label="Play AudioX, AudioCaps example 7"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/t2a/t2a-07/sao.flac" aria-label="Play Stable Audio Open, AudioCaps example 7"></audio></td>
+                                <td class="col-ours audio"><audio controls preload="none" src="assets/t2a/t2a-07/ours_wave.flac" aria-label="Play LatentEQ (Waveform), AudioCaps example 7"></audio></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="demo-block" id="t2a-08">
+                <h4>08.</h4>
+                <p class="demo-desc">Bells chime and ring</p>
+                <div class="demo-table-wrapper">
+                    <table class="demo-table">
+                        <thead>
+                            <tr>
+                                <th></th>
+                                <th>Ground Truth</th>
+                                <th>AudioLDM</th>
+                                <th>Tango</th>
+                                <th>MMAudio</th>
+                                <th class="col-ours">LatentEQ (Spectrogram)</th>
+                                <th>TangoFlux</th>
+                                <th>AudioX</th>
+                                <th>Stable Audio Open</th>
+                                <th class="col-ours">LatentEQ (Waveform)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <th>Mel</th>
+                                <td class="mel"><img src="assets/t2a/t2a-08/reference.webp" alt="Ground Truth, AudioCaps example 8 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/t2a/t2a-08/audioldm.webp" alt="AudioLDM, AudioCaps example 8 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/t2a/t2a-08/tango.webp" alt="Tango, AudioCaps example 8 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/t2a/t2a-08/mmaudio.webp" alt="MMAudio, AudioCaps example 8 mel" loading="lazy"></td>
+                                <td class="col-ours mel"><img src="assets/t2a/t2a-08/ours_spec.webp" alt="LatentEQ (Spectrogram), AudioCaps example 8 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/t2a/t2a-08/tangoflux.webp" alt="TangoFlux, AudioCaps example 8 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/t2a/t2a-08/audiox.webp" alt="AudioX, AudioCaps example 8 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/t2a/t2a-08/sao.webp" alt="Stable Audio Open, AudioCaps example 8 mel" loading="lazy"></td>
+                                <td class="col-ours mel"><img src="assets/t2a/t2a-08/ours_wave.webp" alt="LatentEQ (Waveform), AudioCaps example 8 mel" loading="lazy"></td>
+                            </tr>
+                            <tr>
+                                <th>Audio</th>
+                                <td class="audio"><audio controls preload="none" src="assets/t2a/t2a-08/reference.flac" aria-label="Play Ground Truth, AudioCaps example 8"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/t2a/t2a-08/audioldm.flac" aria-label="Play AudioLDM, AudioCaps example 8"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/t2a/t2a-08/tango.flac" aria-label="Play Tango, AudioCaps example 8"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/t2a/t2a-08/mmaudio.flac" aria-label="Play MMAudio, AudioCaps example 8"></audio></td>
+                                <td class="col-ours audio"><audio controls preload="none" src="assets/t2a/t2a-08/ours_spec.flac" aria-label="Play LatentEQ (Spectrogram), AudioCaps example 8"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/t2a/t2a-08/tangoflux.flac" aria-label="Play TangoFlux, AudioCaps example 8"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/t2a/t2a-08/audiox.flac" aria-label="Play AudioX, AudioCaps example 8"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/t2a/t2a-08/sao.flac" aria-label="Play Stable Audio Open, AudioCaps example 8"></audio></td>
+                                <td class="col-ours audio"><audio controls preload="none" src="assets/t2a/t2a-08/ours_wave.flac" aria-label="Play LatentEQ (Waveform), AudioCaps example 8"></audio></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </section>
+
+<section class="demos-section video-demos" id="v2a"><h3>Video-to-Audio</h3><div class="demos-group" id="v2a-vggsound"><h4>VGGSound</h4><div class="demo-block" id="v2a-01">
+<h4>01.</h4>
+
+<div class="demo-table-wrapper"><table class="demo-table">
+<thead><tr><th></th><th>Ground Truth</th><th>V-AURA</th><th>Frieren</th><th>AudioX</th><th>MMAudio</th><th class="col-ours">LatentEQ (Spectrogram)</th></tr></thead>
+<tbody><tr><th>Mel</th><td class="mel"><img src="assets/v2a/v2a-01/reference.webp" alt="Ground Truth Mel" loading="lazy"></td><td class="mel"><img src="assets/v2a/v2a-01/vaura.webp" alt="V-AURA Mel" loading="lazy"></td><td class="mel"><img src="assets/v2a/v2a-01/frieren.webp" alt="Frieren Mel" loading="lazy"></td><td class="mel"><img src="assets/v2a/v2a-01/audiox.webp" alt="AudioX Mel" loading="lazy"></td><td class="mel"><img src="assets/v2a/v2a-01/mmaudio.webp" alt="MMAudio Mel" loading="lazy"></td><td class="col-ours mel"><img src="assets/v2a/v2a-01/ours_spec.webp" alt="LatentEQ (Spectrogram) Mel" loading="lazy"></td></tr>
+<tr><th>Video</th><td class="video"><video controls playsinline preload="none" poster="assets/v2a/v2a-01/poster.webp" src="assets/v2a/v2a-01/reference.mp4" aria-label="Ground Truth, V2A example 01"></video></td><td class="video"><video controls playsinline preload="none" poster="assets/v2a/v2a-01/poster.webp" src="assets/v2a/v2a-01/vaura.mp4" aria-label="V-AURA, V2A example 01"></video></td><td class="video"><video controls playsinline preload="none" poster="assets/v2a/v2a-01/poster.webp" src="assets/v2a/v2a-01/frieren.mp4" aria-label="Frieren, V2A example 01"></video></td><td class="video"><video controls playsinline preload="none" poster="assets/v2a/v2a-01/poster.webp" src="assets/v2a/v2a-01/audiox.mp4" aria-label="AudioX, V2A example 01"></video></td><td class="video"><video controls playsinline preload="none" poster="assets/v2a/v2a-01/poster.webp" src="assets/v2a/v2a-01/mmaudio.mp4" aria-label="MMAudio, V2A example 01"></video></td><td class="col-ours video"><video controls playsinline preload="none" poster="assets/v2a/v2a-01/poster.webp" src="assets/v2a/v2a-01/ours_spec.mp4" aria-label="LatentEQ (Spectrogram), V2A example 01"></video></td></tr></tbody>
+</table></div></div><div class="demo-block" id="v2a-02">
+<h4>02.</h4>
+
+<div class="demo-table-wrapper"><table class="demo-table">
+<thead><tr><th></th><th>Ground Truth</th><th>V-AURA</th><th>Frieren</th><th>AudioX</th><th>MMAudio</th><th class="col-ours">LatentEQ (Spectrogram)</th></tr></thead>
+<tbody><tr><th>Mel</th><td class="mel"><img src="assets/v2a/v2a-02/reference.webp" alt="Ground Truth Mel" loading="lazy"></td><td class="mel"><img src="assets/v2a/v2a-02/vaura.webp" alt="V-AURA Mel" loading="lazy"></td><td class="mel"><img src="assets/v2a/v2a-02/frieren.webp" alt="Frieren Mel" loading="lazy"></td><td class="mel"><img src="assets/v2a/v2a-02/audiox.webp" alt="AudioX Mel" loading="lazy"></td><td class="mel"><img src="assets/v2a/v2a-02/mmaudio.webp" alt="MMAudio Mel" loading="lazy"></td><td class="col-ours mel"><img src="assets/v2a/v2a-02/ours_spec.webp" alt="LatentEQ (Spectrogram) Mel" loading="lazy"></td></tr>
+<tr><th>Video</th><td class="video"><video controls playsinline preload="none" poster="assets/v2a/v2a-02/poster.webp" src="assets/v2a/v2a-02/reference.mp4" aria-label="Ground Truth, V2A example 02"></video></td><td class="video"><video controls playsinline preload="none" poster="assets/v2a/v2a-02/poster.webp" src="assets/v2a/v2a-02/vaura.mp4" aria-label="V-AURA, V2A example 02"></video></td><td class="video"><video controls playsinline preload="none" poster="assets/v2a/v2a-02/poster.webp" src="assets/v2a/v2a-02/frieren.mp4" aria-label="Frieren, V2A example 02"></video></td><td class="video"><video controls playsinline preload="none" poster="assets/v2a/v2a-02/poster.webp" src="assets/v2a/v2a-02/audiox.mp4" aria-label="AudioX, V2A example 02"></video></td><td class="video"><video controls playsinline preload="none" poster="assets/v2a/v2a-02/poster.webp" src="assets/v2a/v2a-02/mmaudio.mp4" aria-label="MMAudio, V2A example 02"></video></td><td class="col-ours video"><video controls playsinline preload="none" poster="assets/v2a/v2a-02/poster.webp" src="assets/v2a/v2a-02/ours_spec.mp4" aria-label="LatentEQ (Spectrogram), V2A example 02"></video></td></tr></tbody>
+</table></div></div><div class="demo-block" id="v2a-03">
+<h4>03.</h4>
+
+<div class="demo-table-wrapper"><table class="demo-table">
+<thead><tr><th></th><th>Ground Truth</th><th>V-AURA</th><th>Frieren</th><th>AudioX</th><th>MMAudio</th><th class="col-ours">LatentEQ (Spectrogram)</th></tr></thead>
+<tbody><tr><th>Mel</th><td class="mel"><img src="assets/v2a/v2a-03/reference.webp" alt="Ground Truth Mel" loading="lazy"></td><td class="mel"><img src="assets/v2a/v2a-03/vaura.webp" alt="V-AURA Mel" loading="lazy"></td><td class="mel"><img src="assets/v2a/v2a-03/frieren.webp" alt="Frieren Mel" loading="lazy"></td><td class="mel"><img src="assets/v2a/v2a-03/audiox.webp" alt="AudioX Mel" loading="lazy"></td><td class="mel"><img src="assets/v2a/v2a-03/mmaudio.webp" alt="MMAudio Mel" loading="lazy"></td><td class="col-ours mel"><img src="assets/v2a/v2a-03/ours_spec.webp" alt="LatentEQ (Spectrogram) Mel" loading="lazy"></td></tr>
+<tr><th>Video</th><td class="video"><video controls playsinline preload="none" poster="assets/v2a/v2a-03/poster.webp" src="assets/v2a/v2a-03/reference.mp4" aria-label="Ground Truth, V2A example 03"></video></td><td class="video"><video controls playsinline preload="none" poster="assets/v2a/v2a-03/poster.webp" src="assets/v2a/v2a-03/vaura.mp4" aria-label="V-AURA, V2A example 03"></video></td><td class="video"><video controls playsinline preload="none" poster="assets/v2a/v2a-03/poster.webp" src="assets/v2a/v2a-03/frieren.mp4" aria-label="Frieren, V2A example 03"></video></td><td class="video"><video controls playsinline preload="none" poster="assets/v2a/v2a-03/poster.webp" src="assets/v2a/v2a-03/audiox.mp4" aria-label="AudioX, V2A example 03"></video></td><td class="video"><video controls playsinline preload="none" poster="assets/v2a/v2a-03/poster.webp" src="assets/v2a/v2a-03/mmaudio.mp4" aria-label="MMAudio, V2A example 03"></video></td><td class="col-ours video"><video controls playsinline preload="none" poster="assets/v2a/v2a-03/poster.webp" src="assets/v2a/v2a-03/ours_spec.mp4" aria-label="LatentEQ (Spectrogram), V2A example 03"></video></td></tr></tbody>
+</table></div></div><div class="demo-block" id="v2a-04">
+<h4>04.</h4>
+
+<div class="demo-table-wrapper"><table class="demo-table">
+<thead><tr><th></th><th>Ground Truth</th><th>V-AURA</th><th>Frieren</th><th>AudioX</th><th>MMAudio</th><th class="col-ours">LatentEQ (Spectrogram)</th></tr></thead>
+<tbody><tr><th>Mel</th><td class="mel"><img src="assets/v2a/v2a-04/reference.webp" alt="Ground Truth Mel" loading="lazy"></td><td class="mel"><img src="assets/v2a/v2a-04/vaura.webp" alt="V-AURA Mel" loading="lazy"></td><td class="mel"><img src="assets/v2a/v2a-04/frieren.webp" alt="Frieren Mel" loading="lazy"></td><td class="mel"><img src="assets/v2a/v2a-04/audiox.webp" alt="AudioX Mel" loading="lazy"></td><td class="mel"><img src="assets/v2a/v2a-04/mmaudio.webp" alt="MMAudio Mel" loading="lazy"></td><td class="col-ours mel"><img src="assets/v2a/v2a-04/ours_spec.webp" alt="LatentEQ (Spectrogram) Mel" loading="lazy"></td></tr>
+<tr><th>Video</th><td class="video"><video controls playsinline preload="none" poster="assets/v2a/v2a-04/poster.webp" src="assets/v2a/v2a-04/reference.mp4" aria-label="Ground Truth, V2A example 04"></video></td><td class="video"><video controls playsinline preload="none" poster="assets/v2a/v2a-04/poster.webp" src="assets/v2a/v2a-04/vaura.mp4" aria-label="V-AURA, V2A example 04"></video></td><td class="video"><video controls playsinline preload="none" poster="assets/v2a/v2a-04/poster.webp" src="assets/v2a/v2a-04/frieren.mp4" aria-label="Frieren, V2A example 04"></video></td><td class="video"><video controls playsinline preload="none" poster="assets/v2a/v2a-04/poster.webp" src="assets/v2a/v2a-04/audiox.mp4" aria-label="AudioX, V2A example 04"></video></td><td class="video"><video controls playsinline preload="none" poster="assets/v2a/v2a-04/poster.webp" src="assets/v2a/v2a-04/mmaudio.mp4" aria-label="MMAudio, V2A example 04"></video></td><td class="col-ours video"><video controls playsinline preload="none" poster="assets/v2a/v2a-04/poster.webp" src="assets/v2a/v2a-04/ours_spec.mp4" aria-label="LatentEQ (Spectrogram), V2A example 04"></video></td></tr></tbody>
+</table></div></div><div class="demo-block" id="v2a-05">
+<h4>05.</h4>
+
+<div class="demo-table-wrapper"><table class="demo-table">
+<thead><tr><th></th><th>Ground Truth</th><th>V-AURA</th><th>Frieren</th><th>AudioX</th><th>MMAudio</th><th class="col-ours">LatentEQ (Spectrogram)</th></tr></thead>
+<tbody><tr><th>Mel</th><td class="mel"><img src="assets/v2a/v2a-05/reference.webp" alt="Ground Truth Mel" loading="lazy"></td><td class="mel"><img src="assets/v2a/v2a-05/vaura.webp" alt="V-AURA Mel" loading="lazy"></td><td class="mel"><img src="assets/v2a/v2a-05/frieren.webp" alt="Frieren Mel" loading="lazy"></td><td class="mel"><img src="assets/v2a/v2a-05/audiox.webp" alt="AudioX Mel" loading="lazy"></td><td class="mel"><img src="assets/v2a/v2a-05/mmaudio.webp" alt="MMAudio Mel" loading="lazy"></td><td class="col-ours mel"><img src="assets/v2a/v2a-05/ours_spec.webp" alt="LatentEQ (Spectrogram) Mel" loading="lazy"></td></tr>
+<tr><th>Video</th><td class="video"><video controls playsinline preload="none" poster="assets/v2a/v2a-05/poster.webp" src="assets/v2a/v2a-05/reference.mp4" aria-label="Ground Truth, V2A example 05"></video></td><td class="video"><video controls playsinline preload="none" poster="assets/v2a/v2a-05/poster.webp" src="assets/v2a/v2a-05/vaura.mp4" aria-label="V-AURA, V2A example 05"></video></td><td class="video"><video controls playsinline preload="none" poster="assets/v2a/v2a-05/poster.webp" src="assets/v2a/v2a-05/frieren.mp4" aria-label="Frieren, V2A example 05"></video></td><td class="video"><video controls playsinline preload="none" poster="assets/v2a/v2a-05/poster.webp" src="assets/v2a/v2a-05/audiox.mp4" aria-label="AudioX, V2A example 05"></video></td><td class="video"><video controls playsinline preload="none" poster="assets/v2a/v2a-05/poster.webp" src="assets/v2a/v2a-05/mmaudio.mp4" aria-label="MMAudio, V2A example 05"></video></td><td class="col-ours video"><video controls playsinline preload="none" poster="assets/v2a/v2a-05/poster.webp" src="assets/v2a/v2a-05/ours_spec.mp4" aria-label="LatentEQ (Spectrogram), V2A example 05"></video></td></tr></tbody>
+</table></div></div><div class="demo-block" id="v2a-06">
+<h4>06.</h4>
+
+<div class="demo-table-wrapper"><table class="demo-table">
+<thead><tr><th></th><th>Ground Truth</th><th>V-AURA</th><th>Frieren</th><th>AudioX</th><th>MMAudio</th><th class="col-ours">LatentEQ (Spectrogram)</th></tr></thead>
+<tbody><tr><th>Mel</th><td class="mel"><img src="assets/v2a/v2a-06/reference.webp" alt="Ground Truth Mel" loading="lazy"></td><td class="mel"><img src="assets/v2a/v2a-06/vaura.webp" alt="V-AURA Mel" loading="lazy"></td><td class="mel"><img src="assets/v2a/v2a-06/frieren.webp" alt="Frieren Mel" loading="lazy"></td><td class="mel"><img src="assets/v2a/v2a-06/audiox.webp" alt="AudioX Mel" loading="lazy"></td><td class="mel"><img src="assets/v2a/v2a-06/mmaudio.webp" alt="MMAudio Mel" loading="lazy"></td><td class="col-ours mel"><img src="assets/v2a/v2a-06/ours_spec.webp" alt="LatentEQ (Spectrogram) Mel" loading="lazy"></td></tr>
+<tr><th>Video</th><td class="video"><video controls playsinline preload="none" poster="assets/v2a/v2a-06/poster.webp" src="assets/v2a/v2a-06/reference.mp4" aria-label="Ground Truth, V2A example 06"></video></td><td class="video"><video controls playsinline preload="none" poster="assets/v2a/v2a-06/poster.webp" src="assets/v2a/v2a-06/vaura.mp4" aria-label="V-AURA, V2A example 06"></video></td><td class="video"><video controls playsinline preload="none" poster="assets/v2a/v2a-06/poster.webp" src="assets/v2a/v2a-06/frieren.mp4" aria-label="Frieren, V2A example 06"></video></td><td class="video"><video controls playsinline preload="none" poster="assets/v2a/v2a-06/poster.webp" src="assets/v2a/v2a-06/audiox.mp4" aria-label="AudioX, V2A example 06"></video></td><td class="video"><video controls playsinline preload="none" poster="assets/v2a/v2a-06/poster.webp" src="assets/v2a/v2a-06/mmaudio.mp4" aria-label="MMAudio, V2A example 06"></video></td><td class="col-ours video"><video controls playsinline preload="none" poster="assets/v2a/v2a-06/poster.webp" src="assets/v2a/v2a-06/ours_spec.mp4" aria-label="LatentEQ (Spectrogram), V2A example 06"></video></td></tr></tbody>
+</table></div></div></div></section>
+
+<section class="demos-section video-demos" id="vt2a"><h3>Video-and-Text-to-Audio</h3><div class="demos-group" id="vt2a-vggsound"><h4>VGGSound-Omni</h4><div class="demo-block" id="vt2a-01">
+<h4>01.</h4>
+<p class="demo-desc">Electronic dance music with a funky bassline and steady beat plays as a DJ rhythmically scratches and stutters a male vocal sample, creating a percussive effect.</p>
+<div class="demo-table-wrapper"><table class="demo-table">
+<thead><tr><th></th><th>Ground Truth</th><th>HunyuanVideo Foley</th><th>AudioX</th><th>MMAudio</th><th>ThinkSound</th><th class="col-ours">LatentEQ (Spectrogram)</th></tr></thead>
+<tbody><tr><th>Mel</th><td class="mel"><img src="assets/vt2a/vt2a-01/reference.webp" alt="Ground Truth Mel" loading="lazy"></td><td class="mel"><img src="assets/vt2a/vt2a-01/hunyuan_foley.webp" alt="HunyuanVideo Foley Mel" loading="lazy"></td><td class="mel"><img src="assets/vt2a/vt2a-01/audiox.webp" alt="AudioX Mel" loading="lazy"></td><td class="mel"><img src="assets/vt2a/vt2a-01/mmaudio.webp" alt="MMAudio Mel" loading="lazy"></td><td class="mel"><img src="assets/vt2a/vt2a-01/thinksound.webp" alt="ThinkSound Mel" loading="lazy"></td><td class="col-ours mel"><img src="assets/vt2a/vt2a-01/ours_spec.webp" alt="LatentEQ (Spectrogram) Mel" loading="lazy"></td></tr>
+<tr><th>Video</th><td class="video"><video controls playsinline preload="none" poster="assets/vt2a/vt2a-01/poster.webp" src="assets/vt2a/vt2a-01/reference.mp4" aria-label="Ground Truth, VT2A example 01"></video></td><td class="video"><video controls playsinline preload="none" poster="assets/vt2a/vt2a-01/poster.webp" src="assets/vt2a/vt2a-01/hunyuan_foley.mp4" aria-label="HunyuanVideo Foley, VT2A example 01"></video></td><td class="video"><video controls playsinline preload="none" poster="assets/vt2a/vt2a-01/poster.webp" src="assets/vt2a/vt2a-01/audiox.mp4" aria-label="AudioX, VT2A example 01"></video></td><td class="video"><video controls playsinline preload="none" poster="assets/vt2a/vt2a-01/poster.webp" src="assets/vt2a/vt2a-01/mmaudio.mp4" aria-label="MMAudio, VT2A example 01"></video></td><td class="video"><video controls playsinline preload="none" poster="assets/vt2a/vt2a-01/poster.webp" src="assets/vt2a/vt2a-01/thinksound.mp4" aria-label="ThinkSound, VT2A example 01"></video></td><td class="col-ours video"><video controls playsinline preload="none" poster="assets/vt2a/vt2a-01/poster.webp" src="assets/vt2a/vt2a-01/ours_spec.mp4" aria-label="LatentEQ (Spectrogram), VT2A example 01"></video></td></tr></tbody>
+</table></div></div><div class="demo-block" id="vt2a-02">
+<h4>02.</h4>
+<p class="demo-desc">A man&#x27;s declarative voice speaks in a South Asian language, accompanied by the persistent background gobbling and cooing of a flock of turkeys.</p>
+<div class="demo-table-wrapper"><table class="demo-table">
+<thead><tr><th></th><th>Ground Truth</th><th>HunyuanVideo Foley</th><th>AudioX</th><th>MMAudio</th><th>ThinkSound</th><th class="col-ours">LatentEQ (Spectrogram)</th></tr></thead>
+<tbody><tr><th>Mel</th><td class="mel"><img src="assets/vt2a/vt2a-02/reference.webp" alt="Ground Truth Mel" loading="lazy"></td><td class="mel"><img src="assets/vt2a/vt2a-02/hunyuan_foley.webp" alt="HunyuanVideo Foley Mel" loading="lazy"></td><td class="mel"><img src="assets/vt2a/vt2a-02/audiox.webp" alt="AudioX Mel" loading="lazy"></td><td class="mel"><img src="assets/vt2a/vt2a-02/mmaudio.webp" alt="MMAudio Mel" loading="lazy"></td><td class="mel"><img src="assets/vt2a/vt2a-02/thinksound.webp" alt="ThinkSound Mel" loading="lazy"></td><td class="col-ours mel"><img src="assets/vt2a/vt2a-02/ours_spec.webp" alt="LatentEQ (Spectrogram) Mel" loading="lazy"></td></tr>
+<tr><th>Video</th><td class="video"><video controls playsinline preload="none" poster="assets/vt2a/vt2a-02/poster.webp" src="assets/vt2a/vt2a-02/reference.mp4" aria-label="Ground Truth, VT2A example 02"></video></td><td class="video"><video controls playsinline preload="none" poster="assets/vt2a/vt2a-02/poster.webp" src="assets/vt2a/vt2a-02/hunyuan_foley.mp4" aria-label="HunyuanVideo Foley, VT2A example 02"></video></td><td class="video"><video controls playsinline preload="none" poster="assets/vt2a/vt2a-02/poster.webp" src="assets/vt2a/vt2a-02/audiox.mp4" aria-label="AudioX, VT2A example 02"></video></td><td class="video"><video controls playsinline preload="none" poster="assets/vt2a/vt2a-02/poster.webp" src="assets/vt2a/vt2a-02/mmaudio.mp4" aria-label="MMAudio, VT2A example 02"></video></td><td class="video"><video controls playsinline preload="none" poster="assets/vt2a/vt2a-02/poster.webp" src="assets/vt2a/vt2a-02/thinksound.mp4" aria-label="ThinkSound, VT2A example 02"></video></td><td class="col-ours video"><video controls playsinline preload="none" poster="assets/vt2a/vt2a-02/poster.webp" src="assets/vt2a/vt2a-02/ours_spec.mp4" aria-label="LatentEQ (Spectrogram), VT2A example 02"></video></td></tr></tbody>
+</table></div></div><div class="demo-block" id="vt2a-03">
+<h4>03.</h4>
+<p class="demo-desc">A male speaks excitedly in Japanese over dramatic orchestral battle music and video game combat sounds, including whooshes and a creature&#x27;s roar.</p>
+<div class="demo-table-wrapper"><table class="demo-table">
+<thead><tr><th></th><th>Ground Truth</th><th>HunyuanVideo Foley</th><th>AudioX</th><th>MMAudio</th><th>ThinkSound</th><th class="col-ours">LatentEQ (Spectrogram)</th></tr></thead>
+<tbody><tr><th>Mel</th><td class="mel"><img src="assets/vt2a/vt2a-03/reference.webp" alt="Ground Truth Mel" loading="lazy"></td><td class="mel"><img src="assets/vt2a/vt2a-03/hunyuan_foley.webp" alt="HunyuanVideo Foley Mel" loading="lazy"></td><td class="mel"><img src="assets/vt2a/vt2a-03/audiox.webp" alt="AudioX Mel" loading="lazy"></td><td class="mel"><img src="assets/vt2a/vt2a-03/mmaudio.webp" alt="MMAudio Mel" loading="lazy"></td><td class="mel"><img src="assets/vt2a/vt2a-03/thinksound.webp" alt="ThinkSound Mel" loading="lazy"></td><td class="col-ours mel"><img src="assets/vt2a/vt2a-03/ours_spec.webp" alt="LatentEQ (Spectrogram) Mel" loading="lazy"></td></tr>
+<tr><th>Video</th><td class="video"><video controls playsinline preload="none" poster="assets/vt2a/vt2a-03/poster.webp" src="assets/vt2a/vt2a-03/reference.mp4" aria-label="Ground Truth, VT2A example 03"></video></td><td class="video"><video controls playsinline preload="none" poster="assets/vt2a/vt2a-03/poster.webp" src="assets/vt2a/vt2a-03/hunyuan_foley.mp4" aria-label="HunyuanVideo Foley, VT2A example 03"></video></td><td class="video"><video controls playsinline preload="none" poster="assets/vt2a/vt2a-03/poster.webp" src="assets/vt2a/vt2a-03/audiox.mp4" aria-label="AudioX, VT2A example 03"></video></td><td class="video"><video controls playsinline preload="none" poster="assets/vt2a/vt2a-03/poster.webp" src="assets/vt2a/vt2a-03/mmaudio.mp4" aria-label="MMAudio, VT2A example 03"></video></td><td class="video"><video controls playsinline preload="none" poster="assets/vt2a/vt2a-03/poster.webp" src="assets/vt2a/vt2a-03/thinksound.mp4" aria-label="ThinkSound, VT2A example 03"></video></td><td class="col-ours video"><video controls playsinline preload="none" poster="assets/vt2a/vt2a-03/poster.webp" src="assets/vt2a/vt2a-03/ours_spec.mp4" aria-label="LatentEQ (Spectrogram), VT2A example 03"></video></td></tr></tbody>
+</table></div></div><div class="demo-block" id="vt2a-04">
+<h4>04.</h4>
+<p class="demo-desc">A single electronic tone and mechanical clicks precede a whirring sound. A rapid series of loud explosions follows, ending with a deafening metallic crash and a final click.</p>
+<div class="demo-table-wrapper"><table class="demo-table">
+<thead><tr><th></th><th>Ground Truth</th><th>HunyuanVideo Foley</th><th>AudioX</th><th>MMAudio</th><th>ThinkSound</th><th class="col-ours">LatentEQ (Spectrogram)</th></tr></thead>
+<tbody><tr><th>Mel</th><td class="mel"><img src="assets/vt2a/vt2a-04/reference.webp" alt="Ground Truth Mel" loading="lazy"></td><td class="mel"><img src="assets/vt2a/vt2a-04/hunyuan_foley.webp" alt="HunyuanVideo Foley Mel" loading="lazy"></td><td class="mel"><img src="assets/vt2a/vt2a-04/audiox.webp" alt="AudioX Mel" loading="lazy"></td><td class="mel"><img src="assets/vt2a/vt2a-04/mmaudio.webp" alt="MMAudio Mel" loading="lazy"></td><td class="mel"><img src="assets/vt2a/vt2a-04/thinksound.webp" alt="ThinkSound Mel" loading="lazy"></td><td class="col-ours mel"><img src="assets/vt2a/vt2a-04/ours_spec.webp" alt="LatentEQ (Spectrogram) Mel" loading="lazy"></td></tr>
+<tr><th>Video</th><td class="video"><video controls playsinline preload="none" poster="assets/vt2a/vt2a-04/poster.webp" src="assets/vt2a/vt2a-04/reference.mp4" aria-label="Ground Truth, VT2A example 04"></video></td><td class="video"><video controls playsinline preload="none" poster="assets/vt2a/vt2a-04/poster.webp" src="assets/vt2a/vt2a-04/hunyuan_foley.mp4" aria-label="HunyuanVideo Foley, VT2A example 04"></video></td><td class="video"><video controls playsinline preload="none" poster="assets/vt2a/vt2a-04/poster.webp" src="assets/vt2a/vt2a-04/audiox.mp4" aria-label="AudioX, VT2A example 04"></video></td><td class="video"><video controls playsinline preload="none" poster="assets/vt2a/vt2a-04/poster.webp" src="assets/vt2a/vt2a-04/mmaudio.mp4" aria-label="MMAudio, VT2A example 04"></video></td><td class="video"><video controls playsinline preload="none" poster="assets/vt2a/vt2a-04/poster.webp" src="assets/vt2a/vt2a-04/thinksound.mp4" aria-label="ThinkSound, VT2A example 04"></video></td><td class="col-ours video"><video controls playsinline preload="none" poster="assets/vt2a/vt2a-04/poster.webp" src="assets/vt2a/vt2a-04/ours_spec.mp4" aria-label="LatentEQ (Spectrogram), VT2A example 04"></video></td></tr></tbody>
+</table></div></div><div class="demo-block" id="vt2a-05">
+<h4>05.</h4>
+<p class="demo-desc">Upbeat dance music plays as children joyfully chant in unison, accompanied by rhythmic clapping and the steady thud of a jump rope hitting the floor.</p>
+<div class="demo-table-wrapper"><table class="demo-table">
+<thead><tr><th></th><th>Ground Truth</th><th>HunyuanVideo Foley</th><th>AudioX</th><th>MMAudio</th><th>ThinkSound</th><th class="col-ours">LatentEQ (Spectrogram)</th></tr></thead>
+<tbody><tr><th>Mel</th><td class="mel"><img src="assets/vt2a/vt2a-05/reference.webp" alt="Ground Truth Mel" loading="lazy"></td><td class="mel"><img src="assets/vt2a/vt2a-05/hunyuan_foley.webp" alt="HunyuanVideo Foley Mel" loading="lazy"></td><td class="mel"><img src="assets/vt2a/vt2a-05/audiox.webp" alt="AudioX Mel" loading="lazy"></td><td class="mel"><img src="assets/vt2a/vt2a-05/mmaudio.webp" alt="MMAudio Mel" loading="lazy"></td><td class="mel"><img src="assets/vt2a/vt2a-05/thinksound.webp" alt="ThinkSound Mel" loading="lazy"></td><td class="col-ours mel"><img src="assets/vt2a/vt2a-05/ours_spec.webp" alt="LatentEQ (Spectrogram) Mel" loading="lazy"></td></tr>
+<tr><th>Video</th><td class="video"><video controls playsinline preload="none" poster="assets/vt2a/vt2a-05/poster.webp" src="assets/vt2a/vt2a-05/reference.mp4" aria-label="Ground Truth, VT2A example 05"></video></td><td class="video"><video controls playsinline preload="none" poster="assets/vt2a/vt2a-05/poster.webp" src="assets/vt2a/vt2a-05/hunyuan_foley.mp4" aria-label="HunyuanVideo Foley, VT2A example 05"></video></td><td class="video"><video controls playsinline preload="none" poster="assets/vt2a/vt2a-05/poster.webp" src="assets/vt2a/vt2a-05/audiox.mp4" aria-label="AudioX, VT2A example 05"></video></td><td class="video"><video controls playsinline preload="none" poster="assets/vt2a/vt2a-05/poster.webp" src="assets/vt2a/vt2a-05/mmaudio.mp4" aria-label="MMAudio, VT2A example 05"></video></td><td class="video"><video controls playsinline preload="none" poster="assets/vt2a/vt2a-05/poster.webp" src="assets/vt2a/vt2a-05/thinksound.mp4" aria-label="ThinkSound, VT2A example 05"></video></td><td class="col-ours video"><video controls playsinline preload="none" poster="assets/vt2a/vt2a-05/poster.webp" src="assets/vt2a/vt2a-05/ours_spec.mp4" aria-label="LatentEQ (Spectrogram), VT2A example 05"></video></td></tr></tbody>
+</table></div></div><div class="demo-block" id="vt2a-06">
+<h4>06.</h4>
+<p class="demo-desc">A fire truck&#x27;s piercing siren wails continuously, accompanied by a blaring horn. A male voice speaks briefly over the roaring engine as the truck speeds by.</p>
+<div class="demo-table-wrapper"><table class="demo-table">
+<thead><tr><th></th><th>Ground Truth</th><th>HunyuanVideo Foley</th><th>AudioX</th><th>MMAudio</th><th>ThinkSound</th><th class="col-ours">LatentEQ (Spectrogram)</th></tr></thead>
+<tbody><tr><th>Mel</th><td class="mel"><img src="assets/vt2a/vt2a-06/reference.webp" alt="Ground Truth Mel" loading="lazy"></td><td class="mel"><img src="assets/vt2a/vt2a-06/hunyuan_foley.webp" alt="HunyuanVideo Foley Mel" loading="lazy"></td><td class="mel"><img src="assets/vt2a/vt2a-06/audiox.webp" alt="AudioX Mel" loading="lazy"></td><td class="mel"><img src="assets/vt2a/vt2a-06/mmaudio.webp" alt="MMAudio Mel" loading="lazy"></td><td class="mel"><img src="assets/vt2a/vt2a-06/thinksound.webp" alt="ThinkSound Mel" loading="lazy"></td><td class="col-ours mel"><img src="assets/vt2a/vt2a-06/ours_spec.webp" alt="LatentEQ (Spectrogram) Mel" loading="lazy"></td></tr>
+<tr><th>Video</th><td class="video"><video controls playsinline preload="none" poster="assets/vt2a/vt2a-06/poster.webp" src="assets/vt2a/vt2a-06/reference.mp4" aria-label="Ground Truth, VT2A example 06"></video></td><td class="video"><video controls playsinline preload="none" poster="assets/vt2a/vt2a-06/poster.webp" src="assets/vt2a/vt2a-06/hunyuan_foley.mp4" aria-label="HunyuanVideo Foley, VT2A example 06"></video></td><td class="video"><video controls playsinline preload="none" poster="assets/vt2a/vt2a-06/poster.webp" src="assets/vt2a/vt2a-06/audiox.mp4" aria-label="AudioX, VT2A example 06"></video></td><td class="video"><video controls playsinline preload="none" poster="assets/vt2a/vt2a-06/poster.webp" src="assets/vt2a/vt2a-06/mmaudio.mp4" aria-label="MMAudio, VT2A example 06"></video></td><td class="video"><video controls playsinline preload="none" poster="assets/vt2a/vt2a-06/poster.webp" src="assets/vt2a/vt2a-06/thinksound.mp4" aria-label="ThinkSound, VT2A example 06"></video></td><td class="col-ours video"><video controls playsinline preload="none" poster="assets/vt2a/vt2a-06/poster.webp" src="assets/vt2a/vt2a-06/ours_spec.mp4" aria-label="LatentEQ (Spectrogram), VT2A example 06"></video></td></tr></tbody>
+</table></div></div></div></section>
+
+    <section class="demos-section" id="reconstruction">
+        <h3>VAE Reconstruction</h3>
+        <p class="section-intro">Mel-spectrograms and audio of the same 10-second input reconstructed by each VAE.</p>
+
+        <div class="demos-group" id="reconstruction-sound">
+            <h4>Sound</h4>
+
+            <div class="demo-block" id="ac-01">
+                <h4>01.</h4>
+                <div class="demo-table-wrapper">
+                    <table class="demo-table">
+                        <thead>
+                            <tr>
+                                <th></th>
+                                <th>Ground Truth</th>
+                                <th>AudioLDM</th>
+                                <th>Make-An-Audio 2</th>
+                                <th>MMAudio</th>
+                                <th class="col-ours">LatentEQ (Spectrogram)</th>
+                                <th>HunyuanVideo Foley</th>
+                                <th>εar-VAE</th>
+                                <th>Stable Audio Open</th>
+                                <th class="col-ours">LatentEQ (Waveform)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <th>Mel</th>
+                                <td class="mel"><img src="assets/reconstruction/ac-01/reference.webp" alt="Ground Truth, Sound example 1 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/reconstruction/ac-01/audioldm.webp" alt="AudioLDM, Sound example 1 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/reconstruction/ac-01/make_an_audio2.webp" alt="Make-An-Audio 2, Sound example 1 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/reconstruction/ac-01/mmaudio.webp" alt="MMAudio, Sound example 1 mel" loading="lazy"></td>
+                                <td class="col-ours mel"><img src="assets/reconstruction/ac-01/ours_spec.webp" alt="LatentEQ (Spectrogram), Sound example 1 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/reconstruction/ac-01/hunyuan_foley.webp" alt="HunyuanVideo Foley, Sound example 1 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/reconstruction/ac-01/ear_vae.webp" alt="εar-VAE, Sound example 1 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/reconstruction/ac-01/sao.webp" alt="Stable Audio Open, Sound example 1 mel" loading="lazy"></td>
+                                <td class="col-ours mel"><img src="assets/reconstruction/ac-01/ours_wave.webp" alt="LatentEQ (Waveform), Sound example 1 mel" loading="lazy"></td>
+                            </tr>
+                            <tr>
+                                <th>Audio</th>
+                                <td class="audio"><audio controls preload="none" src="assets/reconstruction/ac-01/reference.flac" aria-label="Play Ground Truth, Sound example 1"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/reconstruction/ac-01/audioldm.flac" aria-label="Play AudioLDM, Sound example 1"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/reconstruction/ac-01/make_an_audio2.flac" aria-label="Play Make-An-Audio 2, Sound example 1"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/reconstruction/ac-01/mmaudio.flac" aria-label="Play MMAudio, Sound example 1"></audio></td>
+                                <td class="col-ours audio"><audio controls preload="none" src="assets/reconstruction/ac-01/ours_spec.flac" aria-label="Play LatentEQ (Spectrogram), Sound example 1"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/reconstruction/ac-01/hunyuan_foley.flac" aria-label="Play HunyuanVideo Foley, Sound example 1"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/reconstruction/ac-01/ear_vae.flac" aria-label="Play εar-VAE, Sound example 1"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/reconstruction/ac-01/sao.flac" aria-label="Play Stable Audio Open, Sound example 1"></audio></td>
+                                <td class="col-ours audio"><audio controls preload="none" src="assets/reconstruction/ac-01/ours_wave.flac" aria-label="Play LatentEQ (Waveform), Sound example 1"></audio></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="demo-block" id="ac-02">
+                <h4>02.</h4>
+                <div class="demo-table-wrapper">
+                    <table class="demo-table">
+                        <thead>
+                            <tr>
+                                <th></th>
+                                <th>Ground Truth</th>
+                                <th>AudioLDM</th>
+                                <th>Make-An-Audio 2</th>
+                                <th>MMAudio</th>
+                                <th class="col-ours">LatentEQ (Spectrogram)</th>
+                                <th>HunyuanVideo Foley</th>
+                                <th>εar-VAE</th>
+                                <th>Stable Audio Open</th>
+                                <th class="col-ours">LatentEQ (Waveform)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <th>Mel</th>
+                                <td class="mel"><img src="assets/reconstruction/ac-02/reference.webp" alt="Ground Truth, Sound example 2 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/reconstruction/ac-02/audioldm.webp" alt="AudioLDM, Sound example 2 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/reconstruction/ac-02/make_an_audio2.webp" alt="Make-An-Audio 2, Sound example 2 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/reconstruction/ac-02/mmaudio.webp" alt="MMAudio, Sound example 2 mel" loading="lazy"></td>
+                                <td class="col-ours mel"><img src="assets/reconstruction/ac-02/ours_spec.webp" alt="LatentEQ (Spectrogram), Sound example 2 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/reconstruction/ac-02/hunyuan_foley.webp" alt="HunyuanVideo Foley, Sound example 2 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/reconstruction/ac-02/ear_vae.webp" alt="εar-VAE, Sound example 2 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/reconstruction/ac-02/sao.webp" alt="Stable Audio Open, Sound example 2 mel" loading="lazy"></td>
+                                <td class="col-ours mel"><img src="assets/reconstruction/ac-02/ours_wave.webp" alt="LatentEQ (Waveform), Sound example 2 mel" loading="lazy"></td>
+                            </tr>
+                            <tr>
+                                <th>Audio</th>
+                                <td class="audio"><audio controls preload="none" src="assets/reconstruction/ac-02/reference.flac" aria-label="Play Ground Truth, Sound example 2"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/reconstruction/ac-02/audioldm.flac" aria-label="Play AudioLDM, Sound example 2"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/reconstruction/ac-02/make_an_audio2.flac" aria-label="Play Make-An-Audio 2, Sound example 2"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/reconstruction/ac-02/mmaudio.flac" aria-label="Play MMAudio, Sound example 2"></audio></td>
+                                <td class="col-ours audio"><audio controls preload="none" src="assets/reconstruction/ac-02/ours_spec.flac" aria-label="Play LatentEQ (Spectrogram), Sound example 2"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/reconstruction/ac-02/hunyuan_foley.flac" aria-label="Play HunyuanVideo Foley, Sound example 2"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/reconstruction/ac-02/ear_vae.flac" aria-label="Play εar-VAE, Sound example 2"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/reconstruction/ac-02/sao.flac" aria-label="Play Stable Audio Open, Sound example 2"></audio></td>
+                                <td class="col-ours audio"><audio controls preload="none" src="assets/reconstruction/ac-02/ours_wave.flac" aria-label="Play LatentEQ (Waveform), Sound example 2"></audio></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="demo-block" id="ac-03">
+                <h4>03.</h4>
+                <div class="demo-table-wrapper">
+                    <table class="demo-table">
+                        <thead>
+                            <tr>
+                                <th></th>
+                                <th>Ground Truth</th>
+                                <th>AudioLDM</th>
+                                <th>Make-An-Audio 2</th>
+                                <th>MMAudio</th>
+                                <th class="col-ours">LatentEQ (Spectrogram)</th>
+                                <th>HunyuanVideo Foley</th>
+                                <th>εar-VAE</th>
+                                <th>Stable Audio Open</th>
+                                <th class="col-ours">LatentEQ (Waveform)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <th>Mel</th>
+                                <td class="mel"><img src="assets/reconstruction/ac-03/reference.webp" alt="Ground Truth, Sound example 3 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/reconstruction/ac-03/audioldm.webp" alt="AudioLDM, Sound example 3 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/reconstruction/ac-03/make_an_audio2.webp" alt="Make-An-Audio 2, Sound example 3 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/reconstruction/ac-03/mmaudio.webp" alt="MMAudio, Sound example 3 mel" loading="lazy"></td>
+                                <td class="col-ours mel"><img src="assets/reconstruction/ac-03/ours_spec.webp" alt="LatentEQ (Spectrogram), Sound example 3 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/reconstruction/ac-03/hunyuan_foley.webp" alt="HunyuanVideo Foley, Sound example 3 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/reconstruction/ac-03/ear_vae.webp" alt="εar-VAE, Sound example 3 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/reconstruction/ac-03/sao.webp" alt="Stable Audio Open, Sound example 3 mel" loading="lazy"></td>
+                                <td class="col-ours mel"><img src="assets/reconstruction/ac-03/ours_wave.webp" alt="LatentEQ (Waveform), Sound example 3 mel" loading="lazy"></td>
+                            </tr>
+                            <tr>
+                                <th>Audio</th>
+                                <td class="audio"><audio controls preload="none" src="assets/reconstruction/ac-03/reference.flac" aria-label="Play Ground Truth, Sound example 3"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/reconstruction/ac-03/audioldm.flac" aria-label="Play AudioLDM, Sound example 3"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/reconstruction/ac-03/make_an_audio2.flac" aria-label="Play Make-An-Audio 2, Sound example 3"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/reconstruction/ac-03/mmaudio.flac" aria-label="Play MMAudio, Sound example 3"></audio></td>
+                                <td class="col-ours audio"><audio controls preload="none" src="assets/reconstruction/ac-03/ours_spec.flac" aria-label="Play LatentEQ (Spectrogram), Sound example 3"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/reconstruction/ac-03/hunyuan_foley.flac" aria-label="Play HunyuanVideo Foley, Sound example 3"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/reconstruction/ac-03/ear_vae.flac" aria-label="Play εar-VAE, Sound example 3"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/reconstruction/ac-03/sao.flac" aria-label="Play Stable Audio Open, Sound example 3"></audio></td>
+                                <td class="col-ours audio"><audio controls preload="none" src="assets/reconstruction/ac-03/ours_wave.flac" aria-label="Play LatentEQ (Waveform), Sound example 3"></audio></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="demo-block" id="ac-04">
+                <h4>04.</h4>
+                <div class="demo-table-wrapper">
+                    <table class="demo-table">
+                        <thead>
+                            <tr>
+                                <th></th>
+                                <th>Ground Truth</th>
+                                <th>AudioLDM</th>
+                                <th>Make-An-Audio 2</th>
+                                <th>MMAudio</th>
+                                <th class="col-ours">LatentEQ (Spectrogram)</th>
+                                <th>HunyuanVideo Foley</th>
+                                <th>εar-VAE</th>
+                                <th>Stable Audio Open</th>
+                                <th class="col-ours">LatentEQ (Waveform)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <th>Mel</th>
+                                <td class="mel"><img src="assets/reconstruction/ac-04/reference.webp" alt="Ground Truth, Sound example 4 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/reconstruction/ac-04/audioldm.webp" alt="AudioLDM, Sound example 4 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/reconstruction/ac-04/make_an_audio2.webp" alt="Make-An-Audio 2, Sound example 4 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/reconstruction/ac-04/mmaudio.webp" alt="MMAudio, Sound example 4 mel" loading="lazy"></td>
+                                <td class="col-ours mel"><img src="assets/reconstruction/ac-04/ours_spec.webp" alt="LatentEQ (Spectrogram), Sound example 4 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/reconstruction/ac-04/hunyuan_foley.webp" alt="HunyuanVideo Foley, Sound example 4 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/reconstruction/ac-04/ear_vae.webp" alt="εar-VAE, Sound example 4 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/reconstruction/ac-04/sao.webp" alt="Stable Audio Open, Sound example 4 mel" loading="lazy"></td>
+                                <td class="col-ours mel"><img src="assets/reconstruction/ac-04/ours_wave.webp" alt="LatentEQ (Waveform), Sound example 4 mel" loading="lazy"></td>
+                            </tr>
+                            <tr>
+                                <th>Audio</th>
+                                <td class="audio"><audio controls preload="none" src="assets/reconstruction/ac-04/reference.flac" aria-label="Play Ground Truth, Sound example 4"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/reconstruction/ac-04/audioldm.flac" aria-label="Play AudioLDM, Sound example 4"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/reconstruction/ac-04/make_an_audio2.flac" aria-label="Play Make-An-Audio 2, Sound example 4"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/reconstruction/ac-04/mmaudio.flac" aria-label="Play MMAudio, Sound example 4"></audio></td>
+                                <td class="col-ours audio"><audio controls preload="none" src="assets/reconstruction/ac-04/ours_spec.flac" aria-label="Play LatentEQ (Spectrogram), Sound example 4"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/reconstruction/ac-04/hunyuan_foley.flac" aria-label="Play HunyuanVideo Foley, Sound example 4"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/reconstruction/ac-04/ear_vae.flac" aria-label="Play εar-VAE, Sound example 4"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/reconstruction/ac-04/sao.flac" aria-label="Play Stable Audio Open, Sound example 4"></audio></td>
+                                <td class="col-ours audio"><audio controls preload="none" src="assets/reconstruction/ac-04/ours_wave.flac" aria-label="Play LatentEQ (Waveform), Sound example 4"></audio></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="demo-block" id="ac-05">
+                <h4>05.</h4>
+                <div class="demo-table-wrapper">
+                    <table class="demo-table">
+                        <thead>
+                            <tr>
+                                <th></th>
+                                <th>Ground Truth</th>
+                                <th>AudioLDM</th>
+                                <th>Make-An-Audio 2</th>
+                                <th>MMAudio</th>
+                                <th class="col-ours">LatentEQ (Spectrogram)</th>
+                                <th>HunyuanVideo Foley</th>
+                                <th>εar-VAE</th>
+                                <th>Stable Audio Open</th>
+                                <th class="col-ours">LatentEQ (Waveform)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <th>Mel</th>
+                                <td class="mel"><img src="assets/reconstruction/ac-05/reference.webp" alt="Ground Truth, Sound example 5 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/reconstruction/ac-05/audioldm.webp" alt="AudioLDM, Sound example 5 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/reconstruction/ac-05/make_an_audio2.webp" alt="Make-An-Audio 2, Sound example 5 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/reconstruction/ac-05/mmaudio.webp" alt="MMAudio, Sound example 5 mel" loading="lazy"></td>
+                                <td class="col-ours mel"><img src="assets/reconstruction/ac-05/ours_spec.webp" alt="LatentEQ (Spectrogram), Sound example 5 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/reconstruction/ac-05/hunyuan_foley.webp" alt="HunyuanVideo Foley, Sound example 5 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/reconstruction/ac-05/ear_vae.webp" alt="εar-VAE, Sound example 5 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/reconstruction/ac-05/sao.webp" alt="Stable Audio Open, Sound example 5 mel" loading="lazy"></td>
+                                <td class="col-ours mel"><img src="assets/reconstruction/ac-05/ours_wave.webp" alt="LatentEQ (Waveform), Sound example 5 mel" loading="lazy"></td>
+                            </tr>
+                            <tr>
+                                <th>Audio</th>
+                                <td class="audio"><audio controls preload="none" src="assets/reconstruction/ac-05/reference.flac" aria-label="Play Ground Truth, Sound example 5"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/reconstruction/ac-05/audioldm.flac" aria-label="Play AudioLDM, Sound example 5"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/reconstruction/ac-05/make_an_audio2.flac" aria-label="Play Make-An-Audio 2, Sound example 5"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/reconstruction/ac-05/mmaudio.flac" aria-label="Play MMAudio, Sound example 5"></audio></td>
+                                <td class="col-ours audio"><audio controls preload="none" src="assets/reconstruction/ac-05/ours_spec.flac" aria-label="Play LatentEQ (Spectrogram), Sound example 5"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/reconstruction/ac-05/hunyuan_foley.flac" aria-label="Play HunyuanVideo Foley, Sound example 5"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/reconstruction/ac-05/ear_vae.flac" aria-label="Play εar-VAE, Sound example 5"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/reconstruction/ac-05/sao.flac" aria-label="Play Stable Audio Open, Sound example 5"></audio></td>
+                                <td class="col-ours audio"><audio controls preload="none" src="assets/reconstruction/ac-05/ours_wave.flac" aria-label="Play LatentEQ (Waveform), Sound example 5"></audio></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="demos-group" id="reconstruction-music">
+            <h4>Music</h4>
+
+            <div class="demo-block" id="sd-01">
+                <h4>01.</h4>
+                <div class="demo-table-wrapper">
+                    <table class="demo-table">
+                        <thead>
+                            <tr>
+                                <th></th>
+                                <th>Ground Truth</th>
+                                <th>AudioLDM</th>
+                                <th>Make-An-Audio 2</th>
+                                <th>MMAudio</th>
+                                <th class="col-ours">LatentEQ (Spectrogram)</th>
+                                <th>HunyuanVideo Foley</th>
+                                <th>εar-VAE</th>
+                                <th>Stable Audio Open</th>
+                                <th class="col-ours">LatentEQ (Waveform)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <th>Mel</th>
+                                <td class="mel"><img src="assets/reconstruction/sd-01/reference.webp" alt="Ground Truth, Music example 1 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/reconstruction/sd-01/audioldm.webp" alt="AudioLDM, Music example 1 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/reconstruction/sd-01/make_an_audio2.webp" alt="Make-An-Audio 2, Music example 1 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/reconstruction/sd-01/mmaudio.webp" alt="MMAudio, Music example 1 mel" loading="lazy"></td>
+                                <td class="col-ours mel"><img src="assets/reconstruction/sd-01/ours_spec.webp" alt="LatentEQ (Spectrogram), Music example 1 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/reconstruction/sd-01/hunyuan_foley.webp" alt="HunyuanVideo Foley, Music example 1 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/reconstruction/sd-01/ear_vae.webp" alt="εar-VAE, Music example 1 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/reconstruction/sd-01/sao.webp" alt="Stable Audio Open, Music example 1 mel" loading="lazy"></td>
+                                <td class="col-ours mel"><img src="assets/reconstruction/sd-01/ours_wave.webp" alt="LatentEQ (Waveform), Music example 1 mel" loading="lazy"></td>
+                            </tr>
+                            <tr>
+                                <th>Audio</th>
+                                <td class="audio"><audio controls preload="none" src="assets/reconstruction/sd-01/reference.flac" aria-label="Play Ground Truth, Music example 1"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/reconstruction/sd-01/audioldm.flac" aria-label="Play AudioLDM, Music example 1"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/reconstruction/sd-01/make_an_audio2.flac" aria-label="Play Make-An-Audio 2, Music example 1"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/reconstruction/sd-01/mmaudio.flac" aria-label="Play MMAudio, Music example 1"></audio></td>
+                                <td class="col-ours audio"><audio controls preload="none" src="assets/reconstruction/sd-01/ours_spec.flac" aria-label="Play LatentEQ (Spectrogram), Music example 1"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/reconstruction/sd-01/hunyuan_foley.flac" aria-label="Play HunyuanVideo Foley, Music example 1"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/reconstruction/sd-01/ear_vae.flac" aria-label="Play εar-VAE, Music example 1"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/reconstruction/sd-01/sao.flac" aria-label="Play Stable Audio Open, Music example 1"></audio></td>
+                                <td class="col-ours audio"><audio controls preload="none" src="assets/reconstruction/sd-01/ours_wave.flac" aria-label="Play LatentEQ (Waveform), Music example 1"></audio></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="demo-block" id="sd-02">
+                <h4>02.</h4>
+                <div class="demo-table-wrapper">
+                    <table class="demo-table">
+                        <thead>
+                            <tr>
+                                <th></th>
+                                <th>Ground Truth</th>
+                                <th>AudioLDM</th>
+                                <th>Make-An-Audio 2</th>
+                                <th>MMAudio</th>
+                                <th class="col-ours">LatentEQ (Spectrogram)</th>
+                                <th>HunyuanVideo Foley</th>
+                                <th>εar-VAE</th>
+                                <th>Stable Audio Open</th>
+                                <th class="col-ours">LatentEQ (Waveform)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <th>Mel</th>
+                                <td class="mel"><img src="assets/reconstruction/sd-02/reference.webp" alt="Ground Truth, Music example 2 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/reconstruction/sd-02/audioldm.webp" alt="AudioLDM, Music example 2 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/reconstruction/sd-02/make_an_audio2.webp" alt="Make-An-Audio 2, Music example 2 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/reconstruction/sd-02/mmaudio.webp" alt="MMAudio, Music example 2 mel" loading="lazy"></td>
+                                <td class="col-ours mel"><img src="assets/reconstruction/sd-02/ours_spec.webp" alt="LatentEQ (Spectrogram), Music example 2 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/reconstruction/sd-02/hunyuan_foley.webp" alt="HunyuanVideo Foley, Music example 2 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/reconstruction/sd-02/ear_vae.webp" alt="εar-VAE, Music example 2 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/reconstruction/sd-02/sao.webp" alt="Stable Audio Open, Music example 2 mel" loading="lazy"></td>
+                                <td class="col-ours mel"><img src="assets/reconstruction/sd-02/ours_wave.webp" alt="LatentEQ (Waveform), Music example 2 mel" loading="lazy"></td>
+                            </tr>
+                            <tr>
+                                <th>Audio</th>
+                                <td class="audio"><audio controls preload="none" src="assets/reconstruction/sd-02/reference.flac" aria-label="Play Ground Truth, Music example 2"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/reconstruction/sd-02/audioldm.flac" aria-label="Play AudioLDM, Music example 2"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/reconstruction/sd-02/make_an_audio2.flac" aria-label="Play Make-An-Audio 2, Music example 2"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/reconstruction/sd-02/mmaudio.flac" aria-label="Play MMAudio, Music example 2"></audio></td>
+                                <td class="col-ours audio"><audio controls preload="none" src="assets/reconstruction/sd-02/ours_spec.flac" aria-label="Play LatentEQ (Spectrogram), Music example 2"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/reconstruction/sd-02/hunyuan_foley.flac" aria-label="Play HunyuanVideo Foley, Music example 2"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/reconstruction/sd-02/ear_vae.flac" aria-label="Play εar-VAE, Music example 2"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/reconstruction/sd-02/sao.flac" aria-label="Play Stable Audio Open, Music example 2"></audio></td>
+                                <td class="col-ours audio"><audio controls preload="none" src="assets/reconstruction/sd-02/ours_wave.flac" aria-label="Play LatentEQ (Waveform), Music example 2"></audio></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="demo-block" id="sd-03">
+                <h4>03.</h4>
+                <div class="demo-table-wrapper">
+                    <table class="demo-table">
+                        <thead>
+                            <tr>
+                                <th></th>
+                                <th>Ground Truth</th>
+                                <th>AudioLDM</th>
+                                <th>Make-An-Audio 2</th>
+                                <th>MMAudio</th>
+                                <th class="col-ours">LatentEQ (Spectrogram)</th>
+                                <th>HunyuanVideo Foley</th>
+                                <th>εar-VAE</th>
+                                <th>Stable Audio Open</th>
+                                <th class="col-ours">LatentEQ (Waveform)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <th>Mel</th>
+                                <td class="mel"><img src="assets/reconstruction/sd-03/reference.webp" alt="Ground Truth, Music example 3 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/reconstruction/sd-03/audioldm.webp" alt="AudioLDM, Music example 3 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/reconstruction/sd-03/make_an_audio2.webp" alt="Make-An-Audio 2, Music example 3 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/reconstruction/sd-03/mmaudio.webp" alt="MMAudio, Music example 3 mel" loading="lazy"></td>
+                                <td class="col-ours mel"><img src="assets/reconstruction/sd-03/ours_spec.webp" alt="LatentEQ (Spectrogram), Music example 3 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/reconstruction/sd-03/hunyuan_foley.webp" alt="HunyuanVideo Foley, Music example 3 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/reconstruction/sd-03/ear_vae.webp" alt="εar-VAE, Music example 3 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/reconstruction/sd-03/sao.webp" alt="Stable Audio Open, Music example 3 mel" loading="lazy"></td>
+                                <td class="col-ours mel"><img src="assets/reconstruction/sd-03/ours_wave.webp" alt="LatentEQ (Waveform), Music example 3 mel" loading="lazy"></td>
+                            </tr>
+                            <tr>
+                                <th>Audio</th>
+                                <td class="audio"><audio controls preload="none" src="assets/reconstruction/sd-03/reference.flac" aria-label="Play Ground Truth, Music example 3"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/reconstruction/sd-03/audioldm.flac" aria-label="Play AudioLDM, Music example 3"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/reconstruction/sd-03/make_an_audio2.flac" aria-label="Play Make-An-Audio 2, Music example 3"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/reconstruction/sd-03/mmaudio.flac" aria-label="Play MMAudio, Music example 3"></audio></td>
+                                <td class="col-ours audio"><audio controls preload="none" src="assets/reconstruction/sd-03/ours_spec.flac" aria-label="Play LatentEQ (Spectrogram), Music example 3"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/reconstruction/sd-03/hunyuan_foley.flac" aria-label="Play HunyuanVideo Foley, Music example 3"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/reconstruction/sd-03/ear_vae.flac" aria-label="Play εar-VAE, Music example 3"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/reconstruction/sd-03/sao.flac" aria-label="Play Stable Audio Open, Music example 3"></audio></td>
+                                <td class="col-ours audio"><audio controls preload="none" src="assets/reconstruction/sd-03/ours_wave.flac" aria-label="Play LatentEQ (Waveform), Music example 3"></audio></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="demo-block" id="sd-04">
+                <h4>04.</h4>
+                <div class="demo-table-wrapper">
+                    <table class="demo-table">
+                        <thead>
+                            <tr>
+                                <th></th>
+                                <th>Ground Truth</th>
+                                <th>AudioLDM</th>
+                                <th>Make-An-Audio 2</th>
+                                <th>MMAudio</th>
+                                <th class="col-ours">LatentEQ (Spectrogram)</th>
+                                <th>HunyuanVideo Foley</th>
+                                <th>εar-VAE</th>
+                                <th>Stable Audio Open</th>
+                                <th class="col-ours">LatentEQ (Waveform)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <th>Mel</th>
+                                <td class="mel"><img src="assets/reconstruction/sd-04/reference.webp" alt="Ground Truth, Music example 4 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/reconstruction/sd-04/audioldm.webp" alt="AudioLDM, Music example 4 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/reconstruction/sd-04/make_an_audio2.webp" alt="Make-An-Audio 2, Music example 4 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/reconstruction/sd-04/mmaudio.webp" alt="MMAudio, Music example 4 mel" loading="lazy"></td>
+                                <td class="col-ours mel"><img src="assets/reconstruction/sd-04/ours_spec.webp" alt="LatentEQ (Spectrogram), Music example 4 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/reconstruction/sd-04/hunyuan_foley.webp" alt="HunyuanVideo Foley, Music example 4 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/reconstruction/sd-04/ear_vae.webp" alt="εar-VAE, Music example 4 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/reconstruction/sd-04/sao.webp" alt="Stable Audio Open, Music example 4 mel" loading="lazy"></td>
+                                <td class="col-ours mel"><img src="assets/reconstruction/sd-04/ours_wave.webp" alt="LatentEQ (Waveform), Music example 4 mel" loading="lazy"></td>
+                            </tr>
+                            <tr>
+                                <th>Audio</th>
+                                <td class="audio"><audio controls preload="none" src="assets/reconstruction/sd-04/reference.flac" aria-label="Play Ground Truth, Music example 4"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/reconstruction/sd-04/audioldm.flac" aria-label="Play AudioLDM, Music example 4"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/reconstruction/sd-04/make_an_audio2.flac" aria-label="Play Make-An-Audio 2, Music example 4"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/reconstruction/sd-04/mmaudio.flac" aria-label="Play MMAudio, Music example 4"></audio></td>
+                                <td class="col-ours audio"><audio controls preload="none" src="assets/reconstruction/sd-04/ours_spec.flac" aria-label="Play LatentEQ (Spectrogram), Music example 4"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/reconstruction/sd-04/hunyuan_foley.flac" aria-label="Play HunyuanVideo Foley, Music example 4"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/reconstruction/sd-04/ear_vae.flac" aria-label="Play εar-VAE, Music example 4"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/reconstruction/sd-04/sao.flac" aria-label="Play Stable Audio Open, Music example 4"></audio></td>
+                                <td class="col-ours audio"><audio controls preload="none" src="assets/reconstruction/sd-04/ours_wave.flac" aria-label="Play LatentEQ (Waveform), Music example 4"></audio></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="demo-block" id="sd-05">
+                <h4>05.</h4>
+                <div class="demo-table-wrapper">
+                    <table class="demo-table">
+                        <thead>
+                            <tr>
+                                <th></th>
+                                <th>Ground Truth</th>
+                                <th>AudioLDM</th>
+                                <th>Make-An-Audio 2</th>
+                                <th>MMAudio</th>
+                                <th class="col-ours">LatentEQ (Spectrogram)</th>
+                                <th>HunyuanVideo Foley</th>
+                                <th>εar-VAE</th>
+                                <th>Stable Audio Open</th>
+                                <th class="col-ours">LatentEQ (Waveform)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <th>Mel</th>
+                                <td class="mel"><img src="assets/reconstruction/sd-05/reference.webp" alt="Ground Truth, Music example 5 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/reconstruction/sd-05/audioldm.webp" alt="AudioLDM, Music example 5 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/reconstruction/sd-05/make_an_audio2.webp" alt="Make-An-Audio 2, Music example 5 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/reconstruction/sd-05/mmaudio.webp" alt="MMAudio, Music example 5 mel" loading="lazy"></td>
+                                <td class="col-ours mel"><img src="assets/reconstruction/sd-05/ours_spec.webp" alt="LatentEQ (Spectrogram), Music example 5 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/reconstruction/sd-05/hunyuan_foley.webp" alt="HunyuanVideo Foley, Music example 5 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/reconstruction/sd-05/ear_vae.webp" alt="εar-VAE, Music example 5 mel" loading="lazy"></td>
+                                <td class="mel"><img src="assets/reconstruction/sd-05/sao.webp" alt="Stable Audio Open, Music example 5 mel" loading="lazy"></td>
+                                <td class="col-ours mel"><img src="assets/reconstruction/sd-05/ours_wave.webp" alt="LatentEQ (Waveform), Music example 5 mel" loading="lazy"></td>
+                            </tr>
+                            <tr>
+                                <th>Audio</th>
+                                <td class="audio"><audio controls preload="none" src="assets/reconstruction/sd-05/reference.flac" aria-label="Play Ground Truth, Music example 5"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/reconstruction/sd-05/audioldm.flac" aria-label="Play AudioLDM, Music example 5"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/reconstruction/sd-05/make_an_audio2.flac" aria-label="Play Make-An-Audio 2, Music example 5"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/reconstruction/sd-05/mmaudio.flac" aria-label="Play MMAudio, Music example 5"></audio></td>
+                                <td class="col-ours audio"><audio controls preload="none" src="assets/reconstruction/sd-05/ours_spec.flac" aria-label="Play LatentEQ (Spectrogram), Music example 5"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/reconstruction/sd-05/hunyuan_foley.flac" aria-label="Play HunyuanVideo Foley, Music example 5"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/reconstruction/sd-05/ear_vae.flac" aria-label="Play εar-VAE, Music example 5"></audio></td>
+                                <td class="audio"><audio controls preload="none" src="assets/reconstruction/sd-05/sao.flac" aria-label="Play Stable Audio Open, Music example 5"></audio></td>
+                                <td class="col-ours audio"><audio controls preload="none" src="assets/reconstruction/sd-05/ours_wave.flac" aria-label="Play LatentEQ (Waveform), Music example 5"></audio></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="demos-section" id="figure2" aria-labelledby="figure2-title">
+        <h3 id="figure2-title">Figure 2, Enlarged</h3>
+        <figure class="figure-panels">
+            <a class="figure-card" href="assets/figures/figure2_temporal.webp" target="_blank" rel="noopener" aria-label="Open the temporal scale equivariance panel at full size">
+                <img src="assets/figures/figure2_temporal.webp" width="3200" height="2300" loading="lazy" alt="Temporal scale equivariance. Top row: the target spectrogram and its versions low-pass filtered at 9.4, 5.4 and 2.7 Hz. Lower rows: spectrograms decoded from the latent filtered at the same cutoffs, for the SAO VAE and for LatentEQ, with the mean log-magnitude per frame overlaid.">
+            </a>
+            <a class="figure-card" href="assets/figures/figure2_spectral.webp" target="_blank" rel="noopener" aria-label="Open the spectral granularity equivariance panel at full size">
+                <img src="assets/figures/figure2_spectral.webp" width="3200" height="2287" loading="lazy" alt="Spectral granularity equivariance. Top row: the target spectrogram and its versions smoothed to the granularity matched to 48, 32 and 16 latent channels. Lower rows: spectrograms decoded from the first 48, 32 and 16 latent channels, for the SAO VAE and for LatentEQ.">
+            </a>
+            <figcaption>
+                <span class="label">Figure 2.</span> Qualitative comparison of the pretrained SAO VAE and its LatentEQ counterpart under temporal low-pass filtering (first panel) and prefix-channel truncation (second panel), where the top row shows the original and matched coarsened spectrogram targets and the lower rows show the decoded outputs. The curves overlaid in the first panel trace the mean log-magnitude per frame.
+            </figcaption>
+        </figure>
+    </section>
+    </main>
+
+    <footer>
+        <p>Latent Spectral Equivariance<span class="dot" aria-hidden="true">·</span><a href="#top">Back to top</a></p>
+    </footer>
+    <script src="static/js/main.js" defer></script>
+</body>
+</html>
